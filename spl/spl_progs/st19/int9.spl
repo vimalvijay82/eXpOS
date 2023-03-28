@@ -1,0 +1,149 @@
+//set mode flag
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 9;
+
+//Save user stack value and set up kernel stack
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 11] * 512 - 1;
+
+alias userSp R0;
+userSp = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13];
+
+//obtain filename from user stack arguments
+alias fileName R1;
+fileName = [[PTBR + 2*((userSp-4)/512)] * 512 + ((userSp-4)%512)];
+
+//check if filename exist and is of type exec
+alias index R2;
+alias inode_table_entry R3;
+alias flag R4;
+
+index=0;
+flag=0;
+
+while(index<MAX_FILE_NUM) do
+	inode_table_entry = INODE_TABLE + (index*16);
+	if([inode_table_entry + 1] == fileName && [inode_table_entry] == EXEC) then
+		flag = 1;
+		break;
+	endif;
+	index=index+1;
+endwhile;
+
+//if file DNE set stack back and return to calling process with return argument as -1
+if(flag==0) then
+	[[PTBR + 2*((userSp-1)/512)] * 512 + ((userSp-1)%512)] = -1;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13];
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	ireturn;
+endif;		
+
+//Exit Process
+multipush(R1,R2,R3,R4);
+R1 = 3;
+R2 = [SYSTEM_STATUS_TABLE+1];
+call MOD_1;
+multipop(R1,R2,R3,R4);
+
+//reclaim the user area page for new process
+[MEMORY_FREE_LIST + [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]] = 1;
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+//change state of new process and update the inode index
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11] * 512 - 1;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = RUNNING;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 7] = index;
+
+//----------------------------------per process table----------------
+
+alias loop R6;
+while(loop < 16) do
+	[(([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] + 1) * 512) - 16 + loop] = -1;
+	loop = loop + 1;
+endwhile;
+
+//------------------------------------------------------------------------
+
+//library 
+alias page_table R5;
+page_table = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16)+14];
+ 
+[page_table+0] = 63;
+[page_table+1] = "0100";
+[page_table+2] = 64;
+[page_table+3] = "0100";
+
+//heap
+
+[page_table+4]=-1;
+[page_table+5]="0000";
+
+[page_table+6]=-1;
+[page_table+7]="0000";
+
+//stack
+
+multipush(R0,R1,R2,R3,R4,R5,R6);
+R1 = 1;
+call MOD_2;
+R7 = R0;
+[page_table+16]=R7;
+[page_table+17]="0110";
+multipop(R0,R1,R2,R3,R4,R5,R6);
+
+
+multipush(R0,R1,R2,R3,R4,R5,R6);
+R1 = 1;
+call MOD_2;
+R7 = R0;
+[page_table+18]=R7;
+[page_table+19]="0110";
+multipop(R0,R1,R2,R3,R4,R5,R6);
+
+
+//code area
+
+if([INODE_TABLE + (index*16) + 8] != -1) then
+	multipush(R0,R1,R2,R3,R4,R5,R6);
+	R1 = 5;
+	R2 = [INODE_TABLE + (index*16) + 8];
+	call MOD_2;
+	[[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 14]+ 8]=R0;
+	[[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 14]+ 9]="0100";
+	multipop(R0,R1,R2,R3,R4,R5,R6);
+else
+	[page_table + 8] = -1;
+	[page_table + 9] = "0000";
+endif;
+
+loop=1;
+
+while(loop<4) do
+		
+	[page_table+8+(2*loop)]=-1;
+	[page_table+8+(2*loop)+1]="0000";
+	
+	loop = loop + 1;
+endwhile;
+
+[[page_table+16]*512] = [[page_table+8] * 512 + 1];
+
+//------------------------------DISK Map Table------------------------------
+
+alias disk_table R7;
+disk_table = DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE + 1]*10;
+
+[disk_table + 0] = -1;
+[disk_table + 1] = -1;
+[disk_table + 2] = -1;
+[disk_table + 3] = -1;
+[disk_table + 4] = [INODE_TABLE + (index*16) + 8];
+[disk_table + 5] = [INODE_TABLE + (index*16) + 9];
+[disk_table + 6] = [INODE_TABLE + (index*16) + 10];
+[disk_table + 7] = [INODE_TABLE + (index*16) + 11];
+[disk_table + 8] = -1;
+[disk_table + 9] = -1;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+SP = 8*512;
+
+ireturn;

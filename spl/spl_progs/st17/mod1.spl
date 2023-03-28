@@ -1,0 +1,72 @@
+//Process manager
+
+alias functionNum R1;
+alias currentPID R2;
+
+//Free user area page
+if(functionNum == 2) then
+	alias userpage R3;
+	userpage = [PROCESS_TABLE + (currentPID*16) + 11];
+	
+	//Release Page
+	multipush(R1,R2);
+	R1 = 2;
+	R2 = userpage;
+	call MOD_2;
+	multipop(R1,R2);
+	
+	return;
+endif;
+
+//exit process
+if(functionNum == 3) then
+	//free page table
+	multipush(R1,R2);
+	R1 = 4;
+	call MOD_1;
+	multipop(R1,R2);
+	
+	//free user area page
+	multipush(R1,R2);
+	R1 = 2;
+	call MOD_1;
+	multipop(R1,R2);
+	
+	[PROCESS_TABLE + (currentPID*16) + 4] = TERMINATED;
+	
+	return;
+endif;
+
+//free page table
+if(functionNum == 4) then
+	alias page_table R3;
+	page_table = [PROCESS_TABLE + (currentPID*16) + 14];
+	[page_table+0] = -1;
+	[page_table+1] = "0000";
+	[page_table+2] = -1;
+	[page_table+3] = "0000";
+	
+	alias loop R4;
+	loop = 0;
+	
+	while(loop<8) do
+		if([page_table+4+(2*loop)]!= -1) then
+			alias page R5;
+			page = [page_table+4+(2*loop)];
+		
+			multipush(R1,R2);
+			R1 = 2;
+			R2 = page;
+			call MOD_2;
+			multipop(R1,R2);
+		
+			[page_table+4+(2*loop)] = -1;
+			[page_table+4+(2*loop)+1] = "0000";
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	return;
+endif;
+		
+	

@@ -1,0 +1,48 @@
+//Memory manager
+
+alias functionNum R1;
+alias pageNum R2;
+
+//Get Free Page
+if(functionNum == 1) then
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+	
+	while([SYSTEM_STATUS_TABLE + 2] == 0) do
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_MEM;
+		call MOD_5;
+	
+	endwhile;
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+	
+	alias loop R3;
+	loop = 76;
+	while(loop < 128) do
+		if ([MEMORY_FREE_LIST + loop]==0) then
+			[MEMORY_FREE_LIST + loop] = 1;
+			break;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	R0 = loop;
+	
+	return;
+endif;
+
+
+//Release Page
+if(functionNum == 2) then
+	[MEMORY_FREE_LIST + pageNum] = [MEMORY_FREE_LIST + pageNum] - 1;
+	if([MEMORY_FREE_LIST + pageNum] == 0) then
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+		alias loop R3;
+		while(loop < 16) do
+			if([PROCESS_TABLE + (loop*16) + 4] == WAIT_MEM) then
+				[PROCESS_TABLE + (loop*16) + 4] = READY;
+			endif;
+			loop = loop + 1;
+		endwhile;
+	endif;
+	return;
+endif;

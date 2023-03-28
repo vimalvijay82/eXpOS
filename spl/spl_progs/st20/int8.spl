@@ -1,0 +1,167 @@
+//set mode flag
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 8;
+
+//Save user stack value and set up kernel stack
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 11] * 512 - 1;
+
+//get pcb
+
+alias newPID R0;
+alias loop R1;
+alias parentPID R10;
+alias parent_pt R11;
+alias child_pt R12;
+
+parentPID = [SYSTEM_STATUS_TABLE + 1];
+parent_pt = PROCESS_TABLE + (parentPID*16);
+
+R1 = 1;
+call MOD_1;
+
+child_pt = PROCESS_TABLE + (newPID*16);
+
+if(newPID == -1) then
+	[parent_pt + 9] = 0;
+	SP = [parent_pt + 13];
+	ireturn;
+endif;
+
+alias parent_ptbr R2;
+parent_ptbr = [parent_pt + 14];
+
+//allocate heap if empty
+
+loop = 0;
+while(loop<2) do
+	if([parent_ptbr + 4 + (2*loop)] == -1) then
+		multipush(R0,R1,R2,R10,R11);
+		R1 = 1;
+		call MOD_2;
+		R3 = R0;
+		multipop(R0,R1,R2,R10,R11);	
+		[parent_ptbr + 4 + (2*loop)] = R3;
+		[parent_ptbr + 5 + (2*loop)] = "1110";
+		
+	endif;
+			
+	loop = loop + 1;
+endwhile;
+
+
+//obtain free page for user stack
+alias child_ptbr R3;
+child_ptbr = [child_pt + 14];
+
+loop = 0;
+while(loop<2) do
+	multipush(R0,R1,R2,R3,R10,R11);
+	R1 = 1;
+	call MOD_2;
+	R4 = R0;
+	multipop(R0,R1,R2,R3,R10,R11);
+	[child_ptbr + 16 + (2*loop)] = R4;
+	[child_ptbr + 17 + (2*loop)] = "0110";
+	
+		
+	loop = loop + 1;
+endwhile;
+
+//obtain free page for user area page
+multipush(R0,R1,R2,R3,R10,R11);
+R1 = 1;
+call MOD_2;
+R4 = R0;
+multipop(R0,R1,R2,R3,R10,R11);
+[child_pt + 11] = R4;
+
+
+//copy parent's process table entries
+[child_pt + 3] = [parent_pt + 3];
+[child_pt + 6] = [parent_pt + 6];
+[child_pt + 7] = [parent_pt + 7];
+[child_pt + 10] = [parent_pt + 10];
+[child_pt + 13] = [parent_pt + 13];
+
+//set chilf's pt entries
+[child_pt + 2] = parentPID;
+[child_pt + 0] = 0;
+[child_pt + 9] = 0;
+[child_pt + 4] = CREATED;
+[child_pt + 12] = 0;
+
+//per process resource table
+loop = 0;
+while(loop < 16) do
+	[(([child_pt + 11] + 1) * 512) - 16 + loop] = [(([parent_pt + 11] + 1) * 512) - 16 + loop];
+	loop = loop + 1;
+	
+endwhile;
+
+//disk map table
+
+alias child_dmt R4;
+alias parent_dmt R5;
+
+child_dmt = DISK_MAP_TABLE + (newPID*10);
+parent_dmt = DISK_MAP_TABLE + (parentPID*10);
+
+loop = 0;
+while(loop < 10) do
+	[child_dmt + loop] = [parent_dmt + loop];
+	loop = loop + 1;
+endwhile;
+
+//set page table values
+
+//library and heap
+loop = 0;
+while(loop<8) do
+	[child_ptbr + loop] = [parent_ptbr + loop];
+	[child_ptbr + 1 + loop] = [parent_ptbr + 1 + loop];
+	[MEMORY_FREE_LIST + [parent_ptbr + loop]] = [MEMORY_FREE_LIST + [parent_ptbr + loop]] + 1;
+	loop = loop + 2;
+endwhile; 
+
+//code
+loop = 0;
+while(loop<4) do
+
+	[child_ptbr + 2*loop + 8] = [parent_ptbr + 2*loop + 8];
+	[child_ptbr + 2*loop + 9] = [parent_ptbr + 2*loop + 9];
+	
+	if([parent_ptbr + 2*loop + 8] != -1) then
+		[MEMORY_FREE_LIST + [parent_ptbr + (2*loop) + 8]] = [MEMORY_FREE_LIST + [parent_ptbr + (2*loop) + 8]] + 1;
+	endif;
+	loop = loop + 1;
+endwhile;
+
+//copy stack word by word
+alias loop2 R6;
+loop2 = 0;
+loop = 0;
+while(loop2<2) do
+	while(loop<512) do
+		[[child_ptbr + 16 + 2*loop2]*512 + loop] = [[parent_ptbr + 16 + 2*loop2]*512 + loop];
+		loop = loop + 1;
+	endwhile;
+	loop2 = loop2 + 1;
+endwhile; 
+
+[[child_pt + 11] * 512] = BP;
+
+alias childRet R7;
+alias parentRet R8;
+
+childRet = [child_pt + 13] - 1;
+
+[[child_ptbr + 2 * ((childRet)/512)] * 512 + ((childRet) % 512)] = 0;
+
+parentRet = [parent_pt + 13] -1; 
+[[parent_ptbr + 2 * ((parentRet)/512)] * 512 + ((parentRet) % 512)] = newPID;	
+
+[parent_pt + 9] = 0;
+SP = [parent_pt + 13];
+
+ireturn;
+
