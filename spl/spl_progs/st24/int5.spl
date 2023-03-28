@@ -1,0 +1,119 @@
+alias userSP R1;
+alias syscallnum R2;
+alias ptbr R3;
+alias pt R4;
+alias retAddr R5;
+
+
+pt = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16);
+ptbr = [pt + 14];
+
+//change to kernel stack
+userSP = SP;
+[pt + 13] = SP;
+SP = [pt + 11] * 512-1;
+
+syscallnum = [[ptbr + 2 * ((userSP-5)/512)] * 512 + ((userSP - 5) % 512)];
+retAddr = [ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512);
+
+//Open
+if(syscallnum == 2) then
+	
+	alias filename R6;
+	filename = [[ptbr + 2 * ((userSP-4)/512)] * 512 + ((userSP - 4) % 512)];
+	
+	//change mode flag	
+	[pt + 9] = 2;
+	alias loop R7;
+	alias userpage R8;
+	userpage = [pt + 11];
+	loop = 0;
+	
+	//find free per process table entry
+	while(loop<8 && [((userpage + 1) * 512 ) - 16 + 2*loop] != -1) do
+		loop = loop + 1;
+	endwhile;
+	
+	//return -1 if no free entry
+	if(loop == 8) then
+		[retAddr] = -3;
+		[pt + 9] = 0;
+		SP = [pt+ 13];
+		ireturn;
+	endif;
+	
+	//call open from module
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+	R1 = 3;
+	R2 = filename;
+	call MOD_3;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+	
+	//return error code is it is error
+	if(R0 < 0) then
+		[retAddr] = R0;
+		[pt + 9] = 0;
+		SP = [pt+ 13];
+		ireturn;
+	endif;
+	
+	//set Resource Identifier field to FILE
+	[((userpage + 1) * 512 ) - 16 + 2*loop] = FILE;
+	[((userpage + 1) * 512 ) - 16 + 2*loop + 1] = R0;
+	
+	[retAddr] = R0;
+	[pt + 9] = 0;
+	SP = [pt+ 13];
+	
+	ireturn;
+	
+endif;
+
+//Close
+if(syscallnum == 3) then
+
+	alias filedesc R6;
+	filedesc = [[ptbr + 2 * ((userSP-4)/512)] * 512 + ((userSP - 4) % 512)];
+	
+	//change mode flag	
+	[pt + 9] = 3;
+	alias userpage R7;
+	userpage = [pt + 11];
+	
+	//if file Descriptor is invalid or entry is not a file
+	if(filedesc < 0 || filedesc > 7) then
+		[retAddr] = -1;
+		[pt + 9] = 0;
+		SP = [pt+ 13];
+		ireturn;
+	endif;
+	
+	//resource identifier does not point to file
+	if([((userpage + 1) * 512 ) - 16 + 2*filedesc] == -1 || [((userpage + 1) * 512 ) - 16 + 2*filedesc] != FILE) then
+		[retAddr] = -1;
+		[pt + 9] = 0;
+		SP = [pt+ 13];
+		ireturn;
+	endif;
+	
+	alias index R8;
+	index = [((userpage+1)*512) - 16 + 2*filedesc + 1];
+	
+	//close from module
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+	R1 = 4;
+	R2 = index;
+	call MOD_3;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+	
+	//Inval;idate per process entry
+	[((userpage + 1) * 512 ) - 16 + 2*filedesc] = -1;
+	[((userpage + 1) * 512 ) - 16 + 2*filedesc +1] = -1;
+	
+	[retAddr] = 0;
+	[pt + 9] = 0;
+	SP = [pt + 13];
+	ireturn;
+	
+endif;
+		

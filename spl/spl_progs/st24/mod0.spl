@@ -1,0 +1,213 @@
+//print "MOD0";
+//Resource manager
+
+alias functionNum R1;
+alias currentPID R2;
+
+//Acquire Buffer
+if(functionNum == 1) then
+	alias buffer R3;
+	
+	//if buffer is locked wait loop
+	while([BUFFER_TABLE + (buffer*4) + 2] != -1) do
+		[PROCESS_TABLE + (currentPID*16) + 4] = WAIT_BUFFER;
+		[PROCESS_TABLE + (currentPID*16) + 5] = buffer;
+		
+		multipush(R1,R2,R3);
+		call MOD_5;
+		multipop(R1,R2,R3);
+	endwhile;
+	
+	//lock buffer
+	[BUFFER_TABLE + (buffer*4) + 2] = currentPID;
+	return;
+endif;
+	
+//Release buffer
+if(functionNum == 2) then
+	alias buffer R3;
+	
+	//cannot release buffer
+	if(currentPID != [BUFFER_TABLE + (buffer*4) + 2]) then
+		R0 = -1;
+		return;
+	endif;
+	
+	//unlock buffer
+	[BUFFER_TABLE + (buffer*4) + 2] = -1;
+	//set processes waiting for buffer to ready
+	alias loop R4;
+	loop = 0;
+	while(loop<16) do
+		if([PROCESS_TABLE + (loop*16) + 4] == WAIT_BUFFER && [PROCESS_TABLE + (loop*16) + 5] == buffer) then
+			[PROCESS_TABLE + (loop*16) + 4] = READY;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	R0 = 0;
+	return;
+	
+endif;
+	
+
+//Acquire Disk
+if(functionNum == 3) then
+	while([DISK_STATUS_TABLE]==1) do
+		[PROCESS_TABLE + (currentPID*16)+4]=WAIT_DISK;
+		
+		multipush(R1,R2);
+		call MOD_5;
+		multipop(R1,R2);
+	endwhile;
+	
+	[DISK_STATUS_TABLE]=1;
+	[DISK_STATUS_TABLE + 4] = currentPID;
+	return;
+endif;
+
+//acquire inode
+if(functionNum == 4) then
+	
+	alias index R3;
+	alias pt R4;
+	pt = PROCESS_TABLE+([SYSTEM_STATUS_TABLE+1]*16);
+	
+	//while inode is locked
+	while([FILE_STATUS_TABLE + index*4]!=-1) do
+		//print "inode locked";
+		[pt+4]=WAIT_FILE;
+		[pt+5]=index;
+		
+		//call scheduler
+		multipush(R1,R2,R3,R4);
+		call MOD_5;
+		multipop(R1,R2,R3,R4);
+		
+	endwhile;
+	
+	//if file is invalid return -1
+	if([INODE_TABLE + index*16+1] == -1) then
+		R0 = -1;
+		return;
+	endif;
+	
+	//lock and return 0
+	[FILE_STATUS_TABLE + index*4] = currentPID;
+	R0 = 0;
+	return;
+	
+endif;
+
+//release inode
+if(functionNum == 5) then
+	
+	alias index R3;
+	
+	//cannot release since currentpid != acquired pid
+	if(currentPID != [FILE_STATUS_TABLE + index*4]) then
+		R0 = -1;
+		return;
+	endif;
+	
+	//free the lock
+	[FILE_STATUS_TABLE + index*4] = -1;
+	
+	//wake up waiting processes
+	alias loop R4;
+	loop = 0;
+	while(loop<16) do
+		if([PROCESS_TABLE + (loop*16) + 4] == WAIT_FILE && [PROCESS_TABLE + (loop*16) + 5] == index) then
+			[PROCESS_TABLE + (loop * 16) + 4] = READY;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	R0 = 0;
+	return;
+endif;
+	
+
+//Acquire Semaphore
+if(functionNum == 6) then
+	
+	alias loop R3;
+	loop = 0;
+	while(loop < MAX_SEM_COUNT) do
+		if([SEMAPHORE_TABLE + (4*loop) + 1] == 0) then
+			[SEMAPHORE_TABLE + (4*loop) + 1] = 1;
+			[SEMAPHORE_TABLE + (4*loop) + 0] = -1;
+			
+			R0 = loop;
+			return;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	R0 = -1;
+	return;
+endif;
+
+//Release Semaphore
+if(functionNum == 7) then
+	alias semID R3;
+	alias loop R4;
+	
+	if([SEMAPHORE_TABLE + (semID*4)] == currentPID) then
+		 [SEMAPHORE_TABLE + (semID*4)] = -1;
+		 
+		 loop = 0;
+		 while(loop < 16) do
+		 	if([PROCESS_TABLE + (loop*16) + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + (loop*16) + 5] == semID) then
+		 		[PROCESS_TABLE + (loop*16) + 4] = READY;
+		 	endif;
+		 	loop = loop + 1;	
+		 endwhile;
+		 
+		 [SEMAPHORE_TABLE + (semID*4) + 1] = [SEMAPHORE_TABLE + (semID*4) + 1] - 1;
+	endif;
+	
+	R0 = 0;
+	return;
+endif;
+		 
+
+//Acquire Terminal
+if(functionNum == 8) then
+	while([TERMINAL_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_TERMINAL;
+		multipush(R1,R2);
+		call MOD_5;
+		multipop(R1,R2);
+	endwhile;
+	
+	[TERMINAL_STATUS_TABLE] = 1;
+	[TERMINAL_STATUS_TABLE + 1] = currentPID;
+	return;
+endif;
+
+//Release Terminal
+if(functionNum == 9) then
+	if ([TERMINAL_STATUS_TABLE + 1] != currentPID) then
+		R0 = -1;
+		return;
+	else
+		[TERMINAL_STATUS_TABLE] = 0;
+		
+		alias loop R3;
+		loop = 0;
+		
+		while(loop<16) do
+			alias val R4;
+			val = [PROCESS_TABLE + (loop * 16) + 4];
+			if(val == WAIT_TERMINAL) then
+				[PROCESS_TABLE + (loop * 16) + 4] = READY;
+			endif;
+			loop = loop + 1;
+		endwhile;
+	
+		R0 = 0;
+		return;
+	endif;
+endif;
+	

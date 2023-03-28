@@ -1,0 +1,208 @@
+//change to kernel stack
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512-1;
+
+alias userSP R1;
+alias syscallnum R2;
+alias ptbr R3;
+alias filename R4;
+alias pt R9;
+alias retAddr R10;
+
+userSP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
+pt = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16);
+ptbr = [pt + 14];
+syscallnum = [[ptbr + 2 * ((userSP-5)/512)] * 512 + ((userSP - 5) % 512)];
+filename = [[ptbr + 2 * ((userSP-4)/512)] * 512 + ((userSP - 4) % 512)];
+retAddr = [[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)];
+
+//Create
+if(syscallnum == 1) then
+	
+	//set mode flag
+	[pt + 9] = 1;
+	alias loop R5;
+	alias perm R6;
+	perm = [[ptbr + 2 * ((userSP-3)/512)] * 512 + ((userSP - 3) % 512)];
+	loop = 0;
+	
+	//if filename already exist return 0
+	while(loop<MAX_FILE_NUM) do
+		if([INODE_TABLE + (loop*16) + 1] == filename) then
+			[retAddr] = 0;
+			[pt + 9] = 0;
+			SP = userSP;
+			ireturn;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	//find free entry
+	loop = 0;
+	while(loop<MAX_FILE_NUM) do
+		if([INODE_TABLE + (loop*16) + 1] == -1) then
+			break;
+		endif;
+		
+		loop = loop + 1;
+	endwhile;
+	
+	//max file number reached
+	if(loop == MAX_FILE_NUM) then
+		[retAddr] = -1;
+		[pt + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	//file type, filename and size
+	[INODE_TABLE + loop*16] = DATA;
+	[INODE_TABLE + loop*16 + 1] = filename;
+	[INODE_TABLE + loop*16 + 2] = 0;
+	
+	//set userID and perm
+	[INODE_TABLE + loop*16 + 3] = [pt + 3];
+	[INODE_TABLE + loop*16 + 4] = perm;
+	
+	//set blocks to -1
+	[INODE_TABLE + loop*16 + 8] = -1;
+	[INODE_TABLE + loop*16 + 9] = -1;
+	[INODE_TABLE + loop*16 + 10] = -1;
+	[INODE_TABLE + loop*16 + 11] = -1;
+	
+	//set root_file entries
+	[ROOT_FILE + loop*8] = filename;
+	[ROOT_FILE + loop*8 + 1] = 0;
+	[ROOT_FILE + loop*8 + 2] = DATA;
+	[ROOT_FILE + loop*8 + 3] = [USER_TABLE + 2*[pt + 3]];
+	[ROOT_FILE + loop*8 + 4] = perm;
+	
+	//return
+	[retAddr] = 0;
+	[pt + 9] = 0;
+	SP = userSP;
+	ireturn;
+	
+endif;
+
+//Delete
+if(syscallnum == 4) then
+	//set mode flag
+	[pt + 9] = 1;
+	
+	alias loop R5;
+	
+	//find index of file in inode table
+	loop = 0;
+	while(loop<MAX_FILE_NUM) do
+		if([INODE_TABLE + (loop*16) + 1] == filename) then
+			break;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	//if no file exist then return 0
+	if(loop == MAX_FILE_NUM) then
+		[retAddr] = 0;
+		[pt + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	//if file is not a data file return -1
+	if([INODE_TABLE + (loop*16)] != DATA) then
+		[retAddr] = -1;
+		[pt + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	//if exclusive permission is set
+	if([INODE_TABLE + loop*16 + 4] == 0) then
+		
+		//if current user is not root and the owner of file
+		if([pt+3]!=1 && [INODE_TABLE + (loop*16) + 3] != [pt+3] ) then
+			[retAddr] = -1;
+			[pt + 9] = 0;
+			SP = userSP;
+			ireturn;
+		endif;
+	
+	endif;
+
+	//Acquire Inode
+	multipush(R1,R2,R3,R4,R5);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE+1];
+	R3 = loop;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5);
+	
+	//file is open and cannot delete
+	if([FILE_STATUS_TABLE + (loop*4) + 1] != -1) then
+		
+		//release inode
+		multipush(R1,R2,R3,R4,R5);
+		R1 = 5;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = loop;
+		call MOD_0;
+		multipop(R1,R2,R3,R4,R5);
+		
+		
+		//return -2
+		[retAddr] = -2;
+		[pt + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	//release block after setting buffer table
+	alias loop2 R6;
+	alias loop3 R7;
+	loop2 = 0;
+	while(loop2 < 4) do
+		//file has loaded block
+		if([INODE_TABLE + loop*16 + 8+loop2] != -1) then
+			loop3 = [INODE_TABLE + loop*16 + 8+loop2]%MAX_BUFFER;
+			//check buffer table for that block
+			if([BUFFER_TABLE + loop3*4] == [INODE_TABLE + loop*16 + 8+loop2] && [BUFFER_TABLE + loop3*4 + 1] == 1) then
+					//reset the dirty bit
+				[BUFFER_TABLE + loop3*4 + 1] = 0;
+			endif;
+			
+			//release block
+			multipush(R1,R2,R3,R4,R5,R6,R7);
+			R1 = 4;
+			R2 = [INODE_TABLE + loop*16 + 8+loop2];
+			R3 = [SYSTEM_STATUS_TABLE+1];
+			call MOD_2;
+			multipop(R1,R2,R3,R4,R5,R6,R7);
+			
+		endif;
+		
+		loop2 = loop2 + 1;
+	endwhile;
+	
+	//invalidate inode table
+	[INODE_TABLE + (loop*16) + 1] = -1;
+	
+	//invalidating entry in root file
+	[ROOT_FILE + loop*8] = -1;
+	
+	//release inode
+	multipush(R1,R2,R3,R4,R5);
+	R1 = 5;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = loop;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5);
+	
+	//return
+	[retAddr] = 0;
+	[pt + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+	

@@ -1,0 +1,188 @@
+alias userSP R1;
+
+alias currentPID R2;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+
+alias childPID R3;
+
+alias parent_pte R4;
+parent_pte = PROCESS_TABLE + (currentPID*16);
+
+alias child_pte R5;
+
+alias parent_ptbr R6;
+parent_ptbr = [parent_pte+14];
+
+alias loop R7;
+
+//Change mode flag and switch to kernal stack
+[parent_pte + 9] = 8;
+[parent_pte + 13] = SP;
+userSP = SP;
+SP = [parent_pte + 11] * 512 - 1;
+
+//get free pcb entry
+multipush(R1,R2,R3,R4,R5,R6,R7);
+R1 = 1;
+call MOD_1;
+multipop(R1,R2,R3,R4,R5,R6,R7);
+childPID = R0;
+
+child_pte = PROCESS_TABLE + (childPID*16);
+
+//if no free process entry return -1
+if(childPID == -1) then
+	[[parent_ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1)%512)] = -1;
+	[parent_pte + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+
+//allocate heap if empty
+
+loop = 0;
+while(loop<2) do
+	if([parent_ptbr + 4 + (2*loop)] == -1) then
+		multipush(R1,R2,R3,R4,R5,R6,R7);
+		R1 = 1;
+		call MOD_2;
+		multipop(R1,R2,R3,R4,R5,R6,R7);	
+		
+		[parent_ptbr + 4 + (2*loop)] = R0;
+		[parent_ptbr + 5 + (2*loop)] = "1110";
+		
+	endif;
+			
+	loop = loop + 1;
+endwhile;
+
+//obtain free page for user stack
+alias child_ptbr R8;
+child_ptbr = [child_pte + 14];
+
+loop = 0;
+while(loop<2) do
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+	R1 = 1;
+	call MOD_2;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+	
+	[child_ptbr + 16 + (2*loop)] = R0;
+	[child_ptbr + 17 + (2*loop)] = "0110";
+	
+		
+	loop = loop + 1;
+endwhile;
+
+//obtain free page for user area page
+multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+R1 = 1;
+call MOD_2;
+multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+[child_pte + 11] = R0;
+
+//copy parent's process table entries
+[child_pte + 3] = [parent_pte + 3];
+[child_pte + 6] = [parent_pte + 6];
+[child_pte + 7] = [parent_pte + 7];
+[child_pte + 10] = [parent_pte + 10];
+[child_pte + 13] = [parent_pte + 13];
+
+//set chilf's pt entries
+[child_pte + 2] = currentPID;
+[child_pte + 0] = 0;
+[child_pte + 9] = 0;
+[child_pte + 4] = CREATED;
+[child_pte + 12] = 0;
+
+//per process resource table
+loop = 0;
+while(loop < 8) do
+	R9 = (([child_pte + 11] + 1) * 512) - 16 + 2*loop;
+	R10 =  (([parent_pte + 11] + 1) * 512) - 16 + 2*loop;
+	
+	[R9] = [R10];
+	[R9 + 1] = [R10 + 1];
+	
+	//if resource is a semaphore
+	if([R9] == SEMAPHORE) then
+		//increment process count
+		[SEMAPHORE_TABLE + ([R9 + 1] * 4) + 1] = [SEMAPHORE_TABLE + ([R9 + 1] * 4) + 1] + 1;
+	endif;
+	
+	if([R9] == FILE) then
+		[OPEN_FILE_TABLE + ([R9 + 1] * 4) + 1] = [OPEN_FILE_TABLE + ([R9 + 1] * 4) + 1] + 1;
+	endif; 
+	loop = loop + 1;
+	
+endwhile;
+
+//disk map table
+
+alias child_dmt R9;
+alias parent_dmt R10;
+
+child_dmt = DISK_MAP_TABLE + (childPID*10);
+parent_dmt = DISK_MAP_TABLE + (currentPID*10);
+
+loop = 0;
+while(loop < 10) do
+	[child_dmt + loop] = [parent_dmt + loop];
+	loop = loop + 1;
+endwhile;
+
+//set page table values
+
+//library and heap
+loop = 0;
+while(loop<8) do
+	[child_ptbr + loop] = [parent_ptbr + loop];
+	[child_ptbr + 1 + loop] = [parent_ptbr + 1 + loop];
+	[MEMORY_FREE_LIST + [parent_ptbr + loop]] = [MEMORY_FREE_LIST + [parent_ptbr + loop]] + 1;
+	loop = loop + 2;
+endwhile; 
+
+//code
+loop = 0;
+while(loop<4) do
+
+	[child_ptbr + 2*loop + 8] = [parent_ptbr + 2*loop + 8];
+	[child_ptbr + 2*loop + 9] = [parent_ptbr + 2*loop + 9];
+	
+	if([parent_ptbr + 2*loop + 8] != -1) then
+		[MEMORY_FREE_LIST + [parent_ptbr + (2*loop) + 8]] = [MEMORY_FREE_LIST + [parent_ptbr + (2*loop) + 8]] + 1;
+	endif;
+	loop = loop + 1;
+endwhile;
+
+//copy stack word by word
+alias loop2 R11;
+loop2 = 0;
+loop = 0;
+while(loop2<2) do
+	while(loop<512) do
+		[[child_ptbr + 16 + 2*loop2]*512 + loop] = [[parent_ptbr + 16 + 2*loop2]*512 + loop];
+		loop = loop + 1;
+	endwhile;
+	loop2 = loop2 + 1;
+endwhile; 
+
+//setting BP value to top of child kernel stack
+[[child_pte + 11] * 512] = BP;
+
+alias childRet R12;
+alias parentRet R13;
+
+childRet = [child_pte + 13] - 1;
+
+[[child_ptbr + 2 * ((childRet)/512)] * 512 + ((childRet) % 512)] = 0;
+
+parentRet = [parent_pte + 13] -1; 
+[[parent_ptbr + 2 * ((parentRet)/512)] * 512 + ((parentRet) % 512)] = childPID;	
+
+[parent_pte + 9] = 0;
+SP = userSP;
+
+ireturn;
+
+

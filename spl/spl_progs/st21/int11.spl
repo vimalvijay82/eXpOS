@@ -1,0 +1,83 @@
+//change to kernel stack
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512-1;
+
+alias userSP R1;
+alias syscallnum R2;
+alias ptbr R3;
+
+userSP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
+ptbr = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] *16) + 14];
+syscallnum = [[ptbr + 2 * ((userSP-5)/512)] * 512 + ((userSP - 5) % 512)];
+
+//get_pid
+if(syscallnum == 11) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 11;
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16)+1];
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	ireturn;
+endif;
+
+//get_ppid
+if(syscallnum == 12) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 11;
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16)+2];
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	ireturn;
+endif;
+
+//wait
+if(syscallnum == 13) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 11;
+	
+	alias pid R4;
+	pid = [[ptbr + 2 * ((userSP-4)/512)] * 512 + ((userSP - 4) % 512)];
+	
+	//if pid is invalid then return to user mode
+	if((pid == [SYSTEM_STATUS_TABLE + 1]) || ([PROCESS_TABLE + (pid*16) + 4] == TERMINATED) || (pid>=16) || (pid<0)) then
+		[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	//change state field of current process
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = WAIT_PROCESS;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 5] = pid;
+	
+	//invoke scheduler
+	multipush(R1,R2,R3,R4);
+	call MOD_5;
+	multipop(R1,R2,R3,R4);
+	
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = 0;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	ireturn;
+
+endif;
+
+//signal
+if(syscallnum == 14) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 11;
+	
+	//find process waiting for current process
+	alias loop R4;
+	loop = 0;
+	while(loop<16) do
+		if(([PROCESS_TABLE + (loop*16) + 4] == WAIT_PROCESS) && ([PROCESS_TABLE + (loop*16) + 5] == [SYSTEM_STATUS_TABLE + 1])) then
+			[PROCESS_TABLE + (loop*16) + 4] = READY;
+		endif;
+		loop = loop + 1;
+	endwhile;
+		
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = 0;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	ireturn;
+
+endif;
+			

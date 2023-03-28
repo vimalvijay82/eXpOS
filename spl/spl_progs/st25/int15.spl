@@ -1,0 +1,90 @@
+//switch to kernel stack
+alias userSP R1;
+alias ptbr R2;
+alias pte R3;
+
+pte = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+ptbr = [pte + 14];
+
+userSP = SP;
+
+[pte + 13] = SP;
+SP = [pte + 11] * 512-1;
+[pte + 9] = 21;
+
+//if current process is not shell return -1
+if([SYSTEM_STATUS_TABLE + 1] != 1 || [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1) then
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -1;
+	SP = [pte + 13];
+	[pte + 9] = 0;
+	ireturn;
+endif;
+
+//kill all
+multipush(R1,R2,R3);
+R1 = 5;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+call MOD_1;
+multipop(R1,R2,R3);
+
+alias loop R4;
+loop = 0;
+//if buffer is dirty store into disk
+while(loop<MAX_BUFFER) do
+	if([BUFFER_TABLE + (loop*4) + 1] == 1) then
+		multipush(R1,R2,R3,R4);
+		R1 = 1;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = 71+loop;
+		R4 = [BUFFER_TABLE + (loop*4)];
+		call MOD_4;
+		multipop(R1,R2,R3,R4);
+	endif;
+	loop = loop + 1;
+endwhile;
+
+
+//if current process is not init or user is not root cannot shutdown
+if([SYSTEM_STATUS_TABLE + 1] != 1 || [pte + 3] != 1) then
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -1;
+	[pte + 9] = 0;
+	SP = [pte + 13];
+	ireturn;
+endif;
+
+//inode table
+multipush(R1,R2,R3,R4);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 59;
+R4 = 3;
+call MOD_4;
+multipop(R1,R2,R3,R4);
+
+multipush(R1,R2,R3,R4);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 60;
+R4 = 4;
+call MOD_4;
+multipop(R1,R2,R3,R4);
+
+//root file
+multipush(R1,R2,R3,R4);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 62;
+R4 = 5;
+call MOD_4;
+multipop(R1,R2,R3,R4);
+
+//disk free list
+multipush(R1,R2,R3,R4);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 61;
+R4 = 2;
+call MOD_4;
+multipop(R1,R2,R3,R4);
+
+halt;

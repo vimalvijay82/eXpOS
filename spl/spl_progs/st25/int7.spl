@@ -1,0 +1,177 @@
+//SETTING MODE FLAG FIELD which indicates if execution is in user mode, exception handler or system call.
+//print "INT7";
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 7;
+
+alias userSp R1;
+userSp = SP;
+alias pte R2;
+pte = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16);
+alias ptbr R3;
+ptbr = [pte + 14];
+
+[pte + 13] = SP;
+SP = [pte + 11] * 512 - 1;
+
+alias fileDescriptor R4;
+fileDescriptor = [([ptbr + 2* ((userSp - 4) / 512)] * 512) + ((userSp - 4) % 512)];
+
+alias retAddr R5;
+retAddr = ([ptbr + 2* ((userSp - 1) / 512)] * 512) + ((userSp - 1) % 512);
+
+alias word R6;
+	word = [[PTBR + 2 * ((userSp - 3) / 512)] * 512 + ((userSp - 3) % 512)];
+
+if (fileDescriptor != -2) then
+	//write to file
+	
+	//invalid file descriptor
+	if(fileDescriptor > 7 || fileDescriptor < 0) then
+		[retAddr] = -1;
+		SP = userSp;
+		[pte + 9] = 0;
+		ireturn;
+	endif;
+	
+	alias userpage R7;
+	userpage = [pte + 11];
+	
+	//resource identifier does not point to file
+	if([((userpage + 1) * 512 ) - 16 + 2*fileDescriptor] == -1 || [((userpage + 1) * 512 ) - 16 + 2*fileDescriptor] != FILE) then
+		[retAddr] = -1;
+		[pte + 9] = 0;
+		SP = userSp;
+		ireturn;
+	endif;
+	
+	alias ft_index R8;
+	ft_index = [((userpage + 1) * 512 ) - 16 + 2*fileDescriptor + 1];
+	
+	alias id_index R9;
+	id_index = [OPEN_FILE_TABLE + (ft_index*4)];
+	
+	//if current user is not root and user does not own file and permission is exclusive
+	if([pte+3] != 1 && [INODE_TABLE + (16*id_index) + 3] != [SYSTEM_STATUS_TABLE + 1] && [INODE_TABLE + (16*id_index) + 4] == EXCLUSIVE) then
+		[retAddr] = -3;
+		[pte + 9] = 0;
+		SP = userSp;
+		ireturn;
+	endif;
+	
+	//Acquire inode
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = id_index;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9);
+	
+	//if fails to acquire lock return -1
+	if(R0 == -1) then
+		[retAddr] = -1;
+		[pte + 9] = 0;
+		SP = userSp;
+		ireturn;
+	endif;
+	
+	alias lseek R10;
+	lseek = [OPEN_FILE_TABLE + (ft_index*4) + 2];
+		
+	//max file size reached
+	if(lseek == MAX_FILE_SIZE) then
+		//release inode and return -2
+		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+		R1 = 5;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = id_index;
+		call MOD_0;
+		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+		
+		[retAddr] = -2;
+		[pte + 9] = 0;
+		SP = userSp;
+		ireturn;
+	endif;
+	
+	//if one block is full and allocate new block
+	//print lseek%512;
+	//print [INODE_TABLE + (16*id_index) + 2];
+	if((lseek % 512) == 0 && lseek == [INODE_TABLE + (16*id_index) + 2]) then
+		//get a free disk block
+		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+		R1 = 3;
+		call MOD_2;
+		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+		
+		//no free block
+		if(R0 == -1) then
+			//release inode and return -2
+			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			R1 = 5;
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R3 = id_index;
+			call MOD_0;
+			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			
+			[retAddr] = -2;
+			[pte + 9] = 0;
+			SP = userSp;
+			ireturn;
+		endif;
+		
+		//set new block in inode
+		[INODE_TABLE + (16*id_index) + 8 + (lseek/512)] = R0;
+	endif;
+	
+	alias blocknum R11;
+	blocknum = [INODE_TABLE + (16*id_index) + 8 + (lseek/512)];
+	
+	//write word to block by buffered_write
+	//print "buffer";
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11);
+	R1 = 1;
+	R2 = blocknum;
+	R3 = lseek%512;
+	R4 = word;
+	call MOD_3;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11);
+	
+	//if lseek == filesize
+	if(lseek == [INODE_TABLE + (16*id_index) + 2]) then
+		//increment file size in inode table and root file	
+		[INODE_TABLE + (16*id_index) + 2] = [INODE_TABLE + (16*id_index) + 2] + 1;
+		
+		[ROOT_FILE + (8*id_index) + 1] = [ROOT_FILE + (8*id_index) + 1] + 1;
+		
+	endif;
+	
+	//increment lseek
+	[OPEN_FILE_TABLE + (4*ft_index) + 2] = [OPEN_FILE_TABLE + (4*ft_index) + 2] + 1;
+	
+	//Release inode
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+	R1 = 5;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = id_index;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+	
+	//return 0
+	[retAddr] = 0;
+	[pte + 9] = 0;
+	SP = userSp;
+	ireturn;	
+		
+else
+	multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 3;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = word;
+	call MOD_4;
+	multipop(R1,R2,R3,R4,R5,R6);
+	
+	[retAddr] = 0;
+	[pte + 9] = 0;
+	SP = userSp;
+	ireturn;
+endif;

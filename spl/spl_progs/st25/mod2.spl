@@ -1,0 +1,127 @@
+//Memory manager
+//print "MOD2";
+
+alias functionNum R1;
+alias pageNum R2;
+
+//Get Free Page
+if(functionNum == 1) then
+	alias pageNum R2;
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+	
+	while([SYSTEM_STATUS_TABLE + 2] == 0) do
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_MEM;
+		multipush(R1,R2);
+		call MOD_5;
+		multipop(R1,R2);
+	
+	endwhile;
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+	
+	alias loop R3;
+	loop = 76;
+	while(loop < 128) do
+		if ([MEMORY_FREE_LIST + loop]==0) then
+			[MEMORY_FREE_LIST + loop] = 1;
+			break;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	R0 = loop;
+	
+	return;
+endif;
+
+
+//Release Page
+if(functionNum == 2) then
+	alias pageNum R2;
+	[MEMORY_FREE_LIST + pageNum] = [MEMORY_FREE_LIST + pageNum] - 1;
+	if([MEMORY_FREE_LIST + pageNum] == 0) then
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+	endif;
+	alias loop R3;
+	loop = 0;
+	while(loop < 16) do
+		if([PROCESS_TABLE + (loop*16) + 4] == WAIT_MEM) then
+				[PROCESS_TABLE + (loop*16) + 4] = READY;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	return;
+endif;
+
+//Get free block
+if(functionNum == 3) then
+	alias loop R2;
+	loop = DISK_FREE_AREA;
+	
+	//find free disk and return
+	while(loop<DISK_SWAP_AREA) do
+		if([DISK_FREE_LIST + loop] == 0) then
+			[DISK_FREE_LIST + loop] = 1;
+			R0 = loop;
+			return;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	R0 = -1;
+	return;
+endif;
+		
+
+//ReleaseBlock
+if(functionNum == 4) then
+	alias blocknum R2;
+	
+	[DISK_FREE_LIST + blocknum] = [DISK_FREE_LIST + blocknum] - 1;
+	return;
+endif;
+
+//GetCodePage
+if(functionNum == 5) then
+	
+	alias blocknum R2;
+	
+	alias loop1 R3;
+	alias loop2 R4;
+	alias dmt R5;
+	alias pt R6;
+	
+	loop1 = 0;
+	while(loop1<MAX_PROC_NUM) do
+		dmt = DISK_MAP_TABLE + (loop1*10);
+		pt = [PROCESS_TABLE + (loop1*16) + 14];
+		
+		loop2 = 4;
+		while(loop2<8) do
+			if([dmt + loop2] == blocknum && [pt + (2*loop2)] != -1) then
+				R0 = [pt + (2*loop2)];
+				[MEMORY_FREE_LIST + R0] = [MEMORY_FREE_LIST + R0] + 1;
+				return;
+			endif;
+			
+			loop2=loop2+1;
+		endwhile;
+		
+		loop1=loop1+1;
+	endwhile;
+	
+	multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 1;
+	call MOD_2;
+	multipop(R1,R2,R3,R4,R5,R6);
+	
+	multipush(R0,R1,R2,R3,R4,R5,R6);
+	R4 = R2;
+	R3 = R0;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R1 = 2;
+	call MOD_4;
+	multipop(R0,R1,R2,R3,R4,R5,R6);
+	
+	return;
+endif;
+	

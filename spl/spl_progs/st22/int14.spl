@@ -1,0 +1,104 @@
+//change to kernel stack
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512-1;
+
+alias userSP R1;
+alias syscallnum R2;
+alias ptbr R3;
+
+userSP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
+ptbr = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] *16) + 14];
+syscallnum = [[ptbr + 2 * ((userSP-5)/512)] * 512 + ((userSP - 5) % 512)];
+
+//Sem Lock
+if(syscallnum == 19) then
+	//set mode flag
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 19;
+	alias semdesc R4;
+	alias userpage R5;
+	alias loop R6;
+	userpage = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11];
+	semdesc = [[ptbr + 2 * ((userSP-4)/512)] * 512 + ((userSP - 4) % 512)];
+	
+	//if Semaphore Descriptor is invalid or entry is not a semaphore
+	if(semdesc < 0 || semdesc > 7 || [((userpage + 1) * 512 ) - 16 + 2*semdesc] == -1) then
+		[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	//while semaphore is locked by some other process, wait queue
+	while([SEMAPHORE_TABLE + ([(userpage+1) * 512 - 16 + 2*semdesc + 1]*4)] != -1 && [SEMAPHORE_TABLE + ([(userpage+1) * 512 - 16 + 2*semdesc + 1]*4)] != [SYSTEM_STATUS_TABLE + 1]) do
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = WAIT_SEMAPHORE;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 5] = [(userpage+1) * 512 - 16 + 2*semdesc + 1];
+		
+		//call scheduler
+		multipush(R1,R2,R3,R4,R5,R6);
+		call MOD_5;
+		multipop(R1,R2,R3,R4,R5,R6);
+		
+	endwhile;
+	
+	//set locking pid to current pid
+	[SEMAPHORE_TABLE + ([(userpage+1) * 512 - 16 + 2*semdesc + 1]*4)] = [SYSTEM_STATUS_TABLE + 1];
+	
+	//set mode flag and return 0
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = 0;
+	ireturn;
+endif;
+
+//sem unlock
+if(syscallnum == 20) then
+	//set mode flag
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 19;
+	alias semdesc R4;
+	alias userpage R5;
+	alias loop R6;
+	userpage = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11];
+	semdesc = [[ptbr + 2 * ((userSP-4)/512)] * 512 + ((userSP - 4) % 512)];
+	
+	//if Semaphore Descriptor is invalid or entry is not a semaphore
+	if(semdesc < 0 || semdesc > 7 || [((userpage + 1) * 512 ) - 16 + 2*semdesc] == -1) then
+		[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	//if semaphore is locked
+	if([SEMAPHORE_TABLE + ([(userpage+1) * 512 - 16 + 2*semdesc + 1]*4)] != -1) then
+		
+		//if not locked by current process
+		if([SEMAPHORE_TABLE + ([(userpage+1) * 512 - 16 + 2*semdesc + 1]*4)] != [SYSTEM_STATUS_TABLE + 1]) then
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+			SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+			[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -2;
+			ireturn;
+		endif;
+		
+		//set locking pid to -1
+		[SEMAPHORE_TABLE + ([(userpage+1) * 512 - 16 + 2*semdesc + 1]*4)] = -1;
+		loop = 0;
+		
+		//set state to ready for all process waiting for this semaphore
+		while(loop<16) do
+			if([PROCESS_TABLE + (loop*16) + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + (loop*16) + 5] == [(userpage+1) * 512 - 16 + 2*semdesc + 1]) then
+				[PROCESS_TABLE + (loop*16) + 4] = READY;
+			endif;
+			loop = loop + 1;
+		endwhile;
+	endif;
+	
+	//set mode flag and return	
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = 0;
+	ireturn;
+endif;	 
+			
+	
+			

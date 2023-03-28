@@ -1,0 +1,194 @@
+//SETTING MODE FLAG FIELD which indicates if execution is in user mode, exception handler or system call.
+//print "INT 6";
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 7;
+
+alias userSp R1;
+userSp = SP;
+alias pte R2;
+pte = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16);
+alias ptbr R3;
+ptbr = [pte + 14];
+
+[pte + 13] = SP;
+SP = [pte + 11] * 512 - 1;
+
+alias fileDescriptor R4;
+fileDescriptor = [([ptbr + 2* ((userSp - 4) / 512)] * 512) + ((userSp - 4) % 512)];
+
+alias retAddr R5;
+retAddr = ([ptbr + 2* ((userSp - 1) / 512)] * 512) + ((userSp - 1) % 512);
+
+
+if(fileDescriptor != -1) then
+	//read from file
+	
+	//invalid file descriptor
+	if(fileDescriptor > 7 || fileDescriptor < 0) then
+		[retAddr] = -1;
+		SP = userSp;
+		[pte + 9] = 0;
+		ireturn;
+	endif;
+	
+	alias userpage R6;
+	userpage = [pte + 11];
+	
+	//resource identifier does not point to file
+	if([((userpage + 1) * 512 ) - 16 + 2*fileDescriptor] == -1 || [((userpage + 1) * 512 ) - 16 + 2*fileDescriptor] != FILE) then
+		//print "hello";
+		[retAddr] = -1;
+		[pte + 9] = 0;
+		SP = userSp;
+		ireturn;
+	endif;
+	
+	//print "hello2";
+	alias ft_index R7;
+	ft_index = [((userpage + 1) * 512 ) - 16 + 2*fileDescriptor + 1];
+	
+	alias id_index R8;
+	id_index = [OPEN_FILE_TABLE + (ft_index*4)];
+	
+	//Acquire inode
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = id_index;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+	
+	//print R0;
+	
+	//if fails to acquire lock return -1
+	if(R0 == -1) then
+		//print "no inode";
+		[retAddr] = -1;
+		[pte + 9] = 0;
+		SP = userSp;
+		ireturn;
+	endif;
+	
+	alias lseek R9;
+	lseek = [OPEN_FILE_TABLE + (ft_index*4) + 2];
+	
+	//print lseek;
+	
+	alias word R10;
+	word = [([ptbr + 2* ((userSp - 3) / 512)] * 512) + ((userSp - 3) % 512)];
+	
+	//print INODE_ROOT;
+	//print id_index;
+	
+	if(id_index == INODE_ROOT) then
+		//lseek > size of root
+		if(lseek > 480) then
+			//release inode and return -2
+			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			R1 = 5;
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R3 = id_index;
+			call MOD_0;
+			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			
+			[retAddr] = -2;
+			[pte + 9] = 0;
+			SP = userSp;
+			ireturn;
+		
+		else
+			//read the word and store at translated position
+			//print "else";
+			[[ptbr + 2 * (word/512)] * 512 + (word%512)] = [ROOT_FILE + lseek];
+			//increment lseek at OFT
+			[OPEN_FILE_TABLE + (ft_index*4) + 2] = [OPEN_FILE_TABLE + (ft_index*4) + 2] + 1;
+			//print "end else";
+			
+			//release inode
+			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			R1 = 5;
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R3 = id_index;
+			call MOD_0;
+			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			
+			[retAddr] = 0;
+			[pte + 9] = 0;
+			SP = userSp;
+			//print "exit int6";
+			ireturn;
+		endif;
+	
+	else
+		//print "big else";
+		//lseek is same as size of file
+		if(lseek >= [INODE_TABLE + (id_index*16) + 2]) then
+			//release inode and return -2
+			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			R1 = 5;
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R3 = id_index;
+			call MOD_0;
+			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10);
+			
+			[retAddr] = -2;
+			[pte + 9] = 0;
+			SP = userSp;
+			ireturn;
+		endif;
+		
+		alias blocknum R11;
+		blocknum = [INODE_TABLE + (id_index*16) + 8 + lseek/512];
+		
+		alias addr R12;
+		addr = ([ptbr + 2 * (word/512)] * 512 + (word%512));
+		
+		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
+		R1 = 2;
+		R2 = blocknum;
+		R3 = lseek%512;
+		R4 = addr;
+		call MOD_3;
+		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
+		
+		//incerment lseek in open file table
+		[OPEN_FILE_TABLE + (ft_index*4) + 2] = [OPEN_FILE_TABLE + (ft_index*4) + 2] + 1;
+		
+		//release inode
+		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
+		R1 = 5;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = id_index;
+		call MOD_0;
+		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
+		
+		//print "return int6";
+		
+		[retAddr] = 0;
+		[pte + 9] = 0;
+		SP = userSp;
+		ireturn;
+	endif;
+
+else
+	alias word R6;
+	word = [([ptbr + 2* ((userSp - 3) / 512)] * 512) + ((userSp - 3) % 512)];
+	
+	multipush(R1,R2,R3,R4,R5,R6);
+	
+	//Function number of terminal read
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE+1];
+	R3 = word;
+	call MOD_4;
+	multipop(R1,R2,R3,R4,R5,R6);
+	
+	[retAddr] = 0;
+	SP = userSp;
+	[pte + 9] = 0;
+	ireturn;
+
+endif;
+
+
+

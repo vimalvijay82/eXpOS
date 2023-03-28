@@ -1,0 +1,103 @@
+//Resource manager
+
+alias functionNum R1;
+alias currentPID R2;
+
+//Acquire Disk
+if(functionNum == 3) then
+	while([DISK_STATUS_TABLE]==1) do
+		[PROCESS_TABLE + (currentPID*16)+4]=WAIT_DISK;
+		
+		multipush(R1,R2);
+		call MOD_5;
+		multipop(R1,R2);
+	endwhile;
+	
+	[DISK_STATUS_TABLE]=1;
+	[DISK_STATUS_TABLE + 4] = currentPID;
+	return;
+endif;
+
+//Acquire Semaphore
+if(functionNum == 6) then
+	
+	alias loop R3;
+	loop = 0;
+	while(loop < MAX_SEM_COUNT) do
+		if([SEMAPHORE_TABLE + (4*loop) + 1] == 0) then
+			[SEMAPHORE_TABLE + (4*loop) + 1] = 1;
+			[SEMAPHORE_TABLE + (4*loop) + 0] = -1;
+			
+			R0 = loop;
+			return;
+		endif;
+		loop = loop + 1;
+	endwhile;
+	
+	R0 = -1;
+	return;
+endif;
+
+//Release Semaphore
+if(functionNum == 7) then
+	alias semID R3;
+	alias loop R4;
+	
+	if([SEMAPHORE_TABLE + (semID*4)] == currentPID) then
+		 [SEMAPHORE_TABLE + (semID*4)] = -1;
+		 
+		 loop = 0;
+		 while(loop < 16) do
+		 	if([PROCESS_TABLE + (loop*16) + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + (loop*16) + 5] == semID) then
+		 		[PROCESS_TABLE + (loop*16) + 4] = READY;
+		 	endif;
+		 	loop = loop + 1;	
+		 endwhile;
+		 
+		 [SEMAPHORE_TABLE + (semID*4) + 1] = [SEMAPHORE_TABLE + (semID*4) + 1] - 1;
+	endif;
+	
+	R0 = 0;
+	return;
+endif;
+		 
+
+//Acquire Terminal
+if(functionNum == 8) then
+	while([TERMINAL_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_TERMINAL;
+		multipush(R1,R2);
+		call MOD_5;
+		multipop(R1,R2);
+	endwhile;
+	
+	[TERMINAL_STATUS_TABLE] = 1;
+	[TERMINAL_STATUS_TABLE + 1] = currentPID;
+	return;
+endif;
+
+//Release Terminal
+if(functionNum == 9) then
+	if ([TERMINAL_STATUS_TABLE + 1] != currentPID) then
+		R0 = -1;
+		return;
+	else
+		[TERMINAL_STATUS_TABLE] = 0;
+		
+		alias loop R3;
+		loop = 0;
+		
+		while(loop<16) do
+			alias val R4;
+			val = [PROCESS_TABLE + (loop * 16) + 4];
+			if(val == WAIT_TERMINAL) then
+				[PROCESS_TABLE + (loop * 16) + 4] = READY;
+			endif;
+			loop = loop + 1;
+		endwhile;
+	
+		R0 = 0;
+		return;
+	endif;
+endif;
+	

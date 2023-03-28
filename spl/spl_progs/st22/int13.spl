@@ -1,0 +1,104 @@
+//change to kernel stack
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512-1;
+
+alias userSP R1;
+alias syscallnum R2;
+alias ptbr R3;
+
+userSP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
+ptbr = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] *16) + 14];
+syscallnum = [[ptbr + 2 * ((userSP-5)/512)] * 512 + ((userSP - 5) % 512)];
+
+//semget
+if(syscallnum == 17) then
+	//set mode flag
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 17;
+	alias loop R4;
+	alias flag R5;
+	alias userpage R6;
+	userpage = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16)+11];
+	flag=0;
+	loop = 0;
+	
+	//find free per process table entry
+	while(loop<8 && [((userpage + 1) * 512 ) - 16 + 2*loop] != -1) do
+		loop = loop + 1;
+	endwhile;
+	
+	//return -1 if no free entry
+	if(loop == 8) then
+		[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	//set Resource Identifier field to 1
+	[((userpage + 1) * 512 ) - 16 + 2*loop] = 1;
+	
+	//Acquire Semaphore
+	multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 6;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6);
+	
+	//no free semaphores
+	if(R0 == -1) then
+		[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -2;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	//set semaphore table entry
+	[((userpage + 1) * 512 ) - 16 + 2*loop + 1] = R0;
+	
+	//set mode flag and return per process index number
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = loop;
+	ireturn;
+endif;
+
+//sem release
+if(syscallnum == 18) then
+	
+	//set mode flag
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 17;
+	
+	alias semdesc R4;
+	alias userpage R5;
+	alias loop R6;
+	userpage = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11];
+	semdesc = [[ptbr + 2 * ((userSP-4)/512)] * 512 + ((userSP - 4) % 512)];
+	
+	//if Semaphore Descriptor is invalid or entry is not a semaphore
+	if(semdesc < 0 || semdesc > 7 || [((userpage + 1) * 512 ) - 16 + 2*semdesc] == -1) then
+		[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	//Release Semaphore
+	multipush(R1,R2,R3,R4,R5,R5);
+	R1 = 7;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = [((userpage + 1) * 512 ) - 16 + 2*semdesc + 1];
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6);
+	
+	//invalidate per process table entry
+	[((userpage + 1) * 512 ) - 16 + 2*semdesc] = -1;
+	
+	//set mode flag and return 0
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	[[ptbr + 2 * ((userSP-1)/512)] * 512 + ((userSP - 1) % 512)] = 0;
+	ireturn;
+endif;
+	
+		 	
