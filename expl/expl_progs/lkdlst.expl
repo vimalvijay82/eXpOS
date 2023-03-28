@@ -1,0 +1,52 @@
+type
+	List
+	{
+		int data;
+		List next;
+	}
+endtype
+
+decl
+	List head;
+enddecl
+
+int main()
+{
+	decl
+		int len,x;
+		List p,q;
+	enddecl
+	
+	begin
+		x=initialize();
+		
+		head = null;
+		read(len);
+		
+		q = head;
+		while(len!=0) do
+			read(x);
+			p = alloc();
+			p.data = x;
+			p.next = null;
+			
+			if(head==null) then
+				head = p;
+				q=p;
+			else
+				q.next = p;
+				q = q.next;
+			endif;
+			
+			len = len - 1;
+		endwhile;
+		
+		p=head;
+		while(p!=null) do
+			write(p.data);
+			p=p.next;
+		endwhile;
+		
+		return 1;
+	end
+}	

@@ -1,0 +1,41 @@
+int main()
+{
+decl
+    int temp, x, a, pidone, iter, data, permission, fd;
+    string filename;
+enddecl
+
+begin
+    temp=exposcall("Read",-1,filename);
+    temp=exposcall("Read",-1,permission);
+    temp=exposcall("Create",filename, permission);
+	
+	write("file created");
+	
+    pidone = exposcall("Fork");
+    if (pidone == 0 ) then
+    	write("child");
+    	
+    	fd=exposcall("Open",filename);
+        iter = 1;
+        while(iter <= 100) do
+            temp=exposcall("Write",fd, iter);
+            iter=iter+1;
+        endwhile;
+        write("endchild");
+    else
+        write("parent");
+        temp = exposcall("Wait",pidone);
+        fd=exposcall("Open",filename);
+        a = 0;
+        while(a != -2) do
+            write("parent");
+            a=exposcall("Read",fd, data);
+           	temp=exposcall("Write",-2, data);
+        endwhile;
+    endif;
+
+    return 0;
+end
+}
+
