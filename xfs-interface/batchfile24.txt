@@ -1,0 +1,11 @@
+load --int=5 $HOME/Desktop/myexpos/spl/spl_progs/st24/int5.xsm
+load --int=6 $HOME/Desktop/myexpos/spl/spl_progs/st24/int6.xsm
+load --int=8 $HOME/Desktop/myexpos/spl/spl_progs/st24/int8.xsm
+load --module 0 $HOME/Desktop/myexpos/spl/spl_progs/st24/mod0.xsm
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/st24/mod1.xsm
+load --module 3 $HOME/Desktop/myexpos/spl/spl_progs/st24/mod3.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st24/boot.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/readfile.xsm
+load --data $HOME/Desktop/myexpos/sample.dat
+load --data $HOME/Desktop/myexpos/expl/expl_progs/numbers.dat
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/st24ass1.xsm

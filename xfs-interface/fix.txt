@@ -1,0 +1,23 @@
+load --os $HOME/Desktop/myexpos/spl/spl_progs/fix/os.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/fix/boot.xsm
+load --int=timer $HOME/Desktop/myexpos/spl/spl_progs/fix/timer.xsm
+load --library $HOME/Desktop/myexpos/expl/library.lib
+load --int=7 $HOME/Desktop/myexpos/spl/spl_progs/fix/int7.xsm
+load --int=10 $HOME/Desktop/myexpos/spl/spl_progs/fix/int10.xsm
+load --int=8 $HOME/Desktop/myexpos/spl/spl_progs/fix/int8.xsm
+load --int=11 $HOME/Desktop/myexpos/spl/spl_progs/fix/int11.xsm
+load --exhandler $HOME/Desktop/myexpos/spl/spl_progs/fix/exhandler.xsm
+load --module 5 $HOME/Desktop/myexpos/spl/spl_progs/fix/mod5.xsm
+load --module 0 $HOME/Desktop/myexpos/spl/spl_progs/fix/mod0.xsm
+load --module 4 $HOME/Desktop/myexpos/spl/spl_progs/fix/mod4.xsm
+load --idle $HOME/Desktop/myexpos/spl/spl_progs/trial/idle.xsm
+load --int=6 $HOME/Desktop/myexpos/spl/spl_progs/fix/int6.xsm
+load --int=console $HOME/Desktop/myexpos/spl/spl_progs/fix/console.xsm
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/fix/mod1.xsm
+load --module 2 $HOME/Desktop/myexpos/spl/spl_progs/fix/mod2.xsm
+load --int=9 $HOME/Desktop/myexpos/spl/spl_progs/fix/int9.xsm
+load --exec $HOME/Desktop/myexpos/expl/samples/odd.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/even.xsm
+load --int=disk $HOME/Desktop/myexpos/spl/spl_progs/fix/disk.xsm
+load --init $HOME/Desktop/myexpos/expl/expl_progs/shell21.xsm
+load --int=15 $HOME/Desktop/myexpos/spl/spl_progs/fix/int15.xsm

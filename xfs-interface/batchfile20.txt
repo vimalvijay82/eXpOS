@@ -1,0 +1,5 @@
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/st20/mod1.xsm
+load --module 5 $HOME/Desktop/myexpos/spl/spl_progs/st20/mod5.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st20/boot.xsm
+load --int=8 $HOME/Desktop/myexpos/spl/spl_progs/st20/int8.xsm
+load --int=10 $HOME/Desktop/myexpos/spl/spl_progs/st20/int10.xsm

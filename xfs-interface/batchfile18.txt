@@ -1,0 +1,5 @@
+load --int=disk $HOME/Desktop/myexpos/spl/spl_progs/st18/disk_int.xsm
+load --module 0 $HOME/Desktop/myexpos/spl/spl_progs/st18/mod0.xsm
+load --module 4 $HOME/Desktop/myexpos/spl/spl_progs/st18/mod4.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st18/boot.xsm
+load --int=9 $HOME/Desktop/myexpos/spl/spl_progs/st18/int9.xsm

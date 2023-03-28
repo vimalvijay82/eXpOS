@@ -1,0 +1,6 @@
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st22/boot.xsm
+load --int=8 $HOME/Desktop/myexpos/spl/spl_progs/st22/int8.xsm
+load --int=13 $HOME/Desktop/myexpos/spl/spl_progs/st22/int13.xsm
+load --int=14 $HOME/Desktop/myexpos/spl/spl_progs/st22/int14.xsm
+load --module 0 $HOME/Desktop/myexpos/spl/spl_progs/st22/mod0.xsm
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/st22/mod1.xsm

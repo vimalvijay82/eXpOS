@@ -1,0 +1,5 @@
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/st19/mod1.xsm
+load --module 2 $HOME/Desktop/myexpos/spl/spl_progs/st19/mod2.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st19/boot.xsm
+load --int=9 $HOME/Desktop/myexpos/spl/spl_progs/st19/int9.xsm
+load --exhandler $HOME/Desktop/myexpos/spl/spl_progs/st19/exhandler.xsm

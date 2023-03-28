@@ -1,0 +1,30 @@
+load --library $HOME/Desktop/myexpos/expl/library.lib
+load --os $HOME/Desktop/myexpos/spl/spl_progs/st17/os.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st22/boot.xsm
+load --int=timer $HOME/Desktop/myexpos/spl/spl_progs/st14/timer.xsm
+load --int=7 $HOME/Desktop/myexpos/spl/spl_progs/st15/int7.xsm
+load --int=8 $HOME/Desktop/myexpos/spl/spl_progs/st22/int8.xsm
+load --int=10 $HOME/Desktop/myexpos/spl/spl_progs/st20/int10.xsm
+load --int=11 $HOME/Desktop/myexpos/spl/spl_progs/st21/int11.xsm
+load --int=13 $HOME/Desktop/myexpos/spl/spl_progs/st22/int13.xsm
+load --int=14 $HOME/Desktop/myexpos/spl/spl_progs/st22/int14.xsm
+load --exhandler $HOME/Desktop/myexpos/spl/spl_progs/st19/exhandler.xsm
+load --module 5 $HOME/Desktop/myexpos/spl/spl_progs/st20/mod5.xsm
+load --module 0 $HOME/Desktop/myexpos/spl/spl_progs/st22/mod0.xsm
+load --module 4 $HOME/Desktop/myexpos/spl/spl_progs/st18/mod4.xsm
+load --int=6 $HOME/Desktop/myexpos/spl/spl_progs/st16/int6.xsm
+load --int=console $HOME/Desktop/myexpos/spl/spl_progs/st16/console_int.xsm
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/st22/mod1.xsm
+load --module 2 $HOME/Desktop/myexpos/spl/spl_progs/st19/mod2.xsm
+load --int=9 $HOME/Desktop/myexpos/spl/spl_progs/st19/int9.xsm
+load --int=disk $HOME/Desktop/myexpos/spl/spl_progs/st18/disk_int.xsm
+load --int=15 $HOME/Desktop/myexpos/spl/spl_progs/st21/int15.xsm
+load --exec $HOME/Desktop/myexpos/expl/samples/odd.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/even.xsm
+load --init $HOME/Desktop/myexpos/expl/expl_progs/shellv2.xsm
+load --idle $HOME/Desktop/myexpos/spl/spl_progs/trial/idle.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/mrg_con.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/mrg_seq.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/rd_wrt.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/parent.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/child.xsm

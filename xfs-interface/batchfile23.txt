@@ -1,0 +1,7 @@
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st23/boot.xsm
+load --int=4 $HOME/Desktop/myexpos/spl/spl_progs/st23/int4.xsm
+load --module 0 $HOME/Desktop/myexpos/spl/spl_progs/st23/mod0.xsm
+load --int=15 $HOME/Desktop/myexpos/spl/spl_progs/st23/int15.xsm
+load --module 4 $HOME/Desktop/myexpos/spl/spl_progs/st23/mod4.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/file_cr.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/file_dt.xsm

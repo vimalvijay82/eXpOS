@@ -1,0 +1,7 @@
+load --module 2 $HOME/Desktop/myexpos/spl/spl_progs/st17/mod2.xsm
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/st17/mod1.xsm
+load --int=9 $HOME/Desktop/myexpos/spl/spl_progs/st17/int9.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/st17/boot.xsm
+load --os $HOME/Desktop/myexpos/spl/spl_progs/st17/os.xsm
+load --init $HOME/Desktop/myexpos/expl/expl_progs/readProgName.xsm
+load --exec $HOME/Desktop/myexpos/expl/samples/odd.xsm

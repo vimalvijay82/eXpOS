@@ -1,0 +1,14 @@
+load --os $HOME/Desktop/myexpos/spl/spl_progs/trial/os.xsm
+load --module 7 $HOME/Desktop/myexpos/spl/spl_progs/trial/boot.xsm
+load --int=timer $HOME/Desktop/myexpos/spl/spl_progs/trial/timer.xsm
+load --library $HOME/Desktop/myexpos/expl/library.lib
+load --int=7 $HOME/Desktop/myexpos/spl/spl_progs/trial/int7.xsm
+load --int=10 $HOME/Desktop/myexpos/spl/spl_progs/trial/int10.xsm
+load --exhandler $HOME/Desktop/myexpos/spl/spl_progs/trial/haltprog.xsm
+load --module 5 $HOME/Desktop/myexpos/spl/spl_progs/trial/mod5.xsm
+load --module 0 $HOME/Desktop/myexpos/spl/spl_progs/trial/mod0.xsm
+load --module 4 $HOME/Desktop/myexpos/spl/spl_progs/trial/mod4.xsm
+load --int=6 $HOME/Desktop/myexpos/spl/spl_progs/trial/int6.xsm
+load --int=console $HOME/Desktop/myexpos/spl/spl_progs/trial/console.xsm
+load --idle $HOME/Desktop/myexpos/spl/spl_progs/trial/idle.xsm
+load --init $HOME/Desktop/myexpos/spl/spl_progs/trial/gcd.xsm

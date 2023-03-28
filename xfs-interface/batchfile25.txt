@@ -1,0 +1,12 @@
+load --int=5 $HOME/Desktop/myexpos/spl/spl_progs/st25/int5.xsm
+load --int=7 $HOME/Desktop/myexpos/spl/spl_progs/st25/int7.xsm
+load --int=15 $HOME/Desktop/myexpos/spl/spl_progs/st23/int15.xsm
+load --module 1 $HOME/Desktop/myexpos/spl/spl_progs/st25/mod1.xsm
+load --module 2 $HOME/Desktop/myexpos/spl/spl_progs/st25/mod2.xsm
+load --module 3 $HOME/Desktop/myexpos/spl/spl_progs/st25/mod3.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/st25ass1.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/ls.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/st25ass2.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/rm.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/cp.xsm
+load --exec $HOME/Desktop/myexpos/expl/expl_progs/cat.xsm
