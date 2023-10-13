@@ -1,2 +1,2 @@
 # expos
-eXpOS kernel written for OS Lab is S5 CSE
+eXpOS kernel written for OS Lab in S5 CSE
